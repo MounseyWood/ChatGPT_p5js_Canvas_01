@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="utf-8" />
-    <title>Scarf Drawing App</title>
+    <meta charset="UTF-8" />
+    <title>Scarf Drawing App - Smaller Canvas, High-Res Export</title>
     <style>
-      /* Basic styling for layout */
       body {
         margin: 0;
         display: flex;
@@ -35,7 +34,11 @@
         margin-bottom: 5px;
       }
       button {
-        margin: 2px 0;
+        margin: 3px 0;
+        cursor: pointer;
+      }
+      input[type="range"] {
+        width: 100%;
       }
     </style>
   </head>
@@ -59,7 +62,7 @@
       <!-- Brush Size -->
       <div class="tool-section">
         <label for="brushSizeSlider">Brush Size:</label>
-        <input type="range" id="brushSizeSlider" min="1" max="100" value="10">
+        <input type="range" id="brushSizeSlider" min="1" max="100" value="10" />
       </div>
 
       <!-- Tools: Brush / Eraser -->
@@ -74,7 +77,7 @@
         <button id="redoBtn">Redo</button>
       </div>
 
-      <!-- New / Import / Export Project -->
+      <!-- Start New / Import / Export Project -->
       <div class="tool-section">
         <button id="startNewBtn">Start New</button>
         <button id="importProjectBtn">Import Project</button>
@@ -84,13 +87,13 @@
       <!-- Text Fill Options -->
       <div class="tool-section">
         <label for="textInput">Text Fill Content:</label>
-        <input type="text" id="textInput" placeholder="Type your fill text...">
+        <input type="text" id="textInput" placeholder="@ or # etc." />
         
         <label for="textSizeInput">Text Size:</label>
-        <input type="number" id="textSizeInput" min="5" max="200" value="20">
+        <input type="number" id="textSizeInput" min="5" max="200" value="20" />
         
         <label for="textSpacingInput">Text Spacing:</label>
-        <input type="number" id="textSpacingInput" min="1" max="100" value="25">
+        <input type="number" id="textSpacingInput" min="1" max="100" value="25" />
         
         <button id="textFillBtn">Fill Last Shape</button>
       </div>
@@ -103,7 +106,7 @@
       </div>
 
       <p style="font-size: 0.85em;">
-        <strong>Tip:</strong> Hold <em>Shift</em> + drag to define a shape for text fill.
+        <strong>Tip:</strong> Hold <em>Shift</em> + drag on the canvas to define a shape for text fill.
       </p>
     </div>
 
@@ -112,171 +115,208 @@
       <!-- p5.js Library -->
       <script src="https://cdn.jsdelivr.net/npm/p5@1.4.0/lib/p5.js"></script>
       <script>
-        /*******************************************
-         * SCARF DRAWING APP (p5.js)
-         *******************************************/
-        const CANVAS_SIZE = 7087; // ~90 cm @ 200 DPI
+        /******************************************************
+         * SCARF DRAWING APP (Smaller Canvas, High-Res Export)
+         ******************************************************/
+
+        // Interactive canvas dimensions
+        const INTERACTIVE_SIZE = 1000;
+
+        // High-res export dimensions (approx 90cm at 200DPI)
+        const EXPORT_SIZE = 7087;
+
         let brushColor = '#000000';
         let brushSize = 10;
         let currentTool = 'brush'; // 'brush' or 'eraser'
+
+        // Actions array: each action is {type, color, size, points} or {type: 'fillShape', shape, ...}
+        let actions = [];
+
+        // Current stroke in progress
+        let currentStroke = null;
+        let isDrawingStroke = false;
+
+        // Shape capture
+        let tempShape = [];
+        let isDrawingShape = false;
 
         // Undo/Redo History
         let history = [];
         let historyIndex = -1;
 
-        // For capturing shapes (to fill with text)
-        let shapes = [];
-        let shapePoints = [];
-        let isDrawingShape = false;
-
         function setup() {
-          // Create a large canvas
-          let cnv = createCanvas(CANVAS_SIZE, CANVAS_SIZE);
+          let cnv = createCanvas(INTERACTIVE_SIZE, INTERACTIVE_SIZE);
           cnv.id('myCanvas');
+          pixelDensity(1); // Avoid high-DPI doubling
 
-          // If your machine struggles with large pixel densities, keep it at 1:
-          pixelDensity(1);
-
-          // Fill background white
           background(255);
 
-          // Grab UI elements
+          // Initialize UI
           setupUI();
 
-          // Save initial blank state
-          saveState();
+          // Save an initial empty state for undo/redo
+          saveHistory();
         }
 
         function draw() {
-          // Brush or Eraser drawing
-          if (mouseIsPressed && !isDrawingShape && isOnCanvas()) {
-            if (currentTool === 'brush') {
-              stroke(brushColor);
-              strokeWeight(brushSize);
-              line(pmouseX, pmouseY, mouseX, mouseY);
-            } else if (currentTool === 'eraser') {
-              stroke(255);
-              strokeWeight(brushSize);
-              line(pmouseX, pmouseY, mouseX, mouseY);
+          // Re-draw everything from actions each frame
+          drawCanvas(1, this);
+        }
+
+        /******************************************************
+         * Drawing the Canvas at a Given Scale
+         ******************************************************/
+        function drawCanvas(scaleFactor, p) {
+          // p is the p5 instance/context to draw on
+          p.background(255);
+
+          // Replay each action
+          for (let action of actions) {
+            drawAction(action, p, scaleFactor);
+          }
+
+          // If currently drawing a stroke, draw the partial stroke
+          if (isDrawingStroke && currentStroke && currentStroke.points.length > 1) {
+            p.stroke(currentStroke.color);
+            p.strokeWeight(currentStroke.size * scaleFactor);
+            for (let i = 1; i < currentStroke.points.length; i++) {
+              let prev = currentStroke.points[i - 1];
+              let curr = currentStroke.points[i];
+              p.line(prev.x * scaleFactor, prev.y * scaleFactor, curr.x * scaleFactor, curr.y * scaleFactor);
+            }
+          }
+
+          // If currently drawing a shape, optionally draw a preview line
+          if (isDrawingShape && tempShape.length > 1) {
+            p.stroke('#0f0');
+            p.strokeWeight(1 * scaleFactor);
+            for (let i = 1; i < tempShape.length; i++) {
+              let prev = tempShape[i - 1];
+              let curr = tempShape[i];
+              p.line(prev.x * scaleFactor, prev.y * scaleFactor, curr.x * scaleFactor, curr.y * scaleFactor);
             }
           }
         }
 
-        /*******************************************
-         * MOUSE & SHAPE CAPTURE
-         *******************************************/
+        // Draw a single action (stroke or shape fill) at scaleFactor
+        function drawAction(action, p, scaleFactor) {
+          if (action.type === 'stroke') {
+            p.stroke(action.color);
+            p.strokeWeight(action.size * scaleFactor);
+            p.noFill();
+            let pts = action.points;
+            for (let i = 1; i < pts.length; i++) {
+              let prev = pts[i - 1];
+              let curr = pts[i];
+              p.line(prev.x * scaleFactor, prev.y * scaleFactor, curr.x * scaleFactor, curr.y * scaleFactor);
+            }
+          } else if (action.type === 'fillShape') {
+            fillShapeWithText(p, action.shape, action.text, action.color, action.textSize, action.spacing, scaleFactor);
+          }
+        }
+
+        /******************************************************
+         * Mouse & Shape Capture
+         ******************************************************/
         function mousePressed() {
-          // Hold Shift to start capturing shape points
-          if (keyIsDown(SHIFT) && isOnCanvas()) {
-            shapePoints = [];
+          if (!isOnCanvas()) return;
+
+          if (keyIsDown(SHIFT)) {
+            // Start capturing a shape
             isDrawingShape = true;
+            tempShape = [{ x: mouseX, y: mouseY }];
+          } else {
+            // Start a brush or eraser stroke
+            isDrawingStroke = true;
+            currentStroke = {
+              type: 'stroke',
+              color: currentTool === 'eraser' ? '#FFFFFF' : brushColor,
+              size: brushSize,
+              points: [{ x: mouseX, y: mouseY }]
+            };
           }
         }
 
         function mouseDragged() {
-          // If capturing shape, record points
-          if (isDrawingShape && isOnCanvas()) {
-            shapePoints.push({ x: mouseX, y: mouseY });
-            // Optionally draw a preview line in real time
-            if (shapePoints.length > 1) {
-              let prev = shapePoints[shapePoints.length - 2];
-              stroke(0, 255, 0);
-              strokeWeight(1);
-              noFill();
-              line(prev.x, prev.y, mouseX, mouseY);
-            }
+          if (!isOnCanvas()) return;
+
+          if (isDrawingShape) {
+            tempShape.push({ x: mouseX, y: mouseY });
+          } else if (isDrawingStroke && currentStroke) {
+            currentStroke.points.push({ x: mouseX, y: mouseY });
           }
         }
 
         function mouseReleased() {
           if (isDrawingShape) {
-            // Finalize shape
-            shapes.push([...shapePoints]);
             isDrawingShape = false;
-            saveState();
-          } else if (isOnCanvas()) {
-            // Finished a brush/eraser stroke
-            saveState();
+            // We just store the shape in tempShape; user can fill it later
+            // If you want to keep shapes for some reason, store them, but for now:
+            // We'll rely on "Fill Last Shape" to create an action
+          } else if (isDrawingStroke && currentStroke) {
+            // Finalize the stroke
+            actions.push(currentStroke);
+            isDrawingStroke = false;
+            currentStroke = null;
+            saveHistory();
           }
         }
 
-        // Check if mouse is within the canvas bounds
         function isOnCanvas() {
           return (mouseX >= 0 && mouseX < width && mouseY >= 0 && mouseY < height);
         }
 
-        /*******************************************
-         * UNDO/REDO
-         *******************************************/
-        function saveState() {
-          historyIndex++;
-          // If we've undone and now draw a new stroke, remove forward states
-          if (historyIndex < history.length) {
-            history.splice(historyIndex);
+        /******************************************************
+         * Text Fill
+         ******************************************************/
+        function fillLastShape() {
+          if (tempShape.length < 3) {
+            alert("No valid shape captured. Hold SHIFT and drag to define a shape.");
+            return;
           }
-          // Push current canvas snapshot
-          history.push(get());
-        }
-
-        function undoAction() {
-          if (historyIndex > 0) {
-            historyIndex--;
-            restoreState();
-          }
-        }
-
-        function redoAction() {
-          if (historyIndex < history.length - 1) {
-            historyIndex++;
-            restoreState();
-          }
-        }
-
-        function restoreState() {
-          clear();
-          image(history[historyIndex], 0, 0);
-        }
-
-        /*******************************************
-         * TEXT FILL FOR LAST SHAPE
-         *******************************************/
-        function textFillShape() {
-          if (shapes.length === 0) return;
-
-          let shape = shapes[shapes.length - 1];
-          if (!shape || shape.length < 3) return;
-
+          // Create a fillShape action
           let textString = select('#textInput').value() || "@";
           let txtSize = parseInt(select('#textSizeInput').value());
           let spacing = parseInt(select('#textSpacingInput').value());
-          let fillColor = brushColor; // Use the current brush color
 
-          push();
-          fill(fillColor);
-          noStroke();
-          textSize(txtSize);
+          let fillAction = {
+            type: 'fillShape',
+            shape: [...tempShape], // copy of the shape
+            text: textString,
+            color: brushColor,
+            textSize: txtSize,
+            spacing: spacing
+          };
+          actions.push(fillAction);
+          tempShape = []; // reset
+          saveHistory();
+        }
 
-          // Find bounding box of the shape
-          let minX = Math.min(...shape.map(p => p.x));
-          let maxX = Math.max(...shape.map(p => p.x));
-          let minY = Math.min(...shape.map(p => p.y));
-          let maxY = Math.max(...shape.map(p => p.y));
+        // Actually fill the shape with repeated text
+        function fillShapeWithText(p, shape, textString, fillColor, txtSize, spacing, scaleFactor) {
+          p.push();
+          p.fill(fillColor);
+          p.noStroke();
+          p.textSize(txtSize * scaleFactor);
 
-          // Fill shape with text in a grid
+          // bounding box
+          let minX = Math.min(...shape.map(pt => pt.x));
+          let maxX = Math.max(...shape.map(pt => pt.x));
+          let minY = Math.min(...shape.map(pt => pt.y));
+          let maxY = Math.max(...shape.map(pt => pt.y));
+
           for (let y = minY; y < maxY; y += spacing) {
             for (let x = minX; x < maxX; x += spacing) {
               if (pnpoly(shape, x, y)) {
-                text(textString, x, y);
+                p.text(textString, x * scaleFactor, y * scaleFactor);
               }
             }
           }
-          pop();
 
-          saveState();
+          p.pop();
         }
 
-        // Point-in-polygon test (pnpoly)
-        // https://wrf.ecse.rpi.edu/Research/Short_Notes/pnpoly.html
+        // Point in polygon
         function pnpoly(vertices, testx, testy) {
           let c = false;
           for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
@@ -289,30 +329,52 @@
           return c;
         }
 
-        /*******************************************
-         * PROJECT IMPORT / EXPORT
-         *******************************************/
+        /******************************************************
+         * Undo/Redo
+         ******************************************************/
+        function saveHistory() {
+          historyIndex++;
+          // If we have undone some steps, remove future states
+          if (historyIndex < history.length) {
+            history.splice(historyIndex);
+          }
+          // Push a deep copy of actions
+          let snapshot = JSON.parse(JSON.stringify(actions));
+          history.push(snapshot);
+        }
+
+        function undoAction() {
+          if (historyIndex > 0) {
+            historyIndex--;
+            actions = JSON.parse(JSON.stringify(history[historyIndex]));
+          }
+        }
+
+        function redoAction() {
+          if (historyIndex < history.length - 1) {
+            historyIndex++;
+            actions = JSON.parse(JSON.stringify(history[historyIndex]));
+          }
+        }
+
+        /******************************************************
+         * Project Import / Export (JSON)
+         ******************************************************/
         function importProject() {
-          // Let user pick a JSON file
           let input = createFileInput(handleFile);
-          input.elt.click(); // Programmatically open file dialog
+          input.elt.click();
 
           function handleFile(file) {
             if (file.type === 'application' || file.subtype === 'json') {
               let data = JSON.parse(file.data);
-              // Restore image
-              loadImage(data.image, img => {
-                clear();
-                image(img, 0, 0);
-                // Reset history
-                history = [];
-                historyIndex = -1;
-                saveState();
-              });
-              // Restore shapes if needed
-              if (data.shapes) {
-                shapes = data.shapes;
+              if (!data.actions) {
+                alert("Invalid project file.");
+                return;
               }
+              actions = data.actions;
+              history = [];
+              historyIndex = -1;
+              saveHistory();
             } else {
               alert("Please select a valid project JSON file.");
             }
@@ -320,15 +382,9 @@
         }
 
         function exportProject() {
-          // Export current canvas as base64 plus shape data
-          let currentCanvas = get();
-          let dataURL = currentCanvas.canvas.toDataURL();
-
           let projectData = {
-            image: dataURL,
-            shapes: shapes
+            actions: actions
           };
-
           let blob = new Blob([JSON.stringify(projectData)], { type: "application/json" });
           let url = URL.createObjectURL(blob);
 
@@ -337,26 +393,46 @@
           a.elt.click();
         }
 
-        /*******************************************
-         * IMAGE EXPORT (PNG / JPG / TIFF)
-         *******************************************/
-        function exportImage(format) {
-          if (format === 'png') {
-            // p5.js built-in
-            saveCanvas('myScarfDesign', 'png');
-          } else if (format === 'jpg') {
-            // p5.js built-in
-            saveCanvas('myScarfDesign', 'jpg');
-          } else if (format === 'tiff') {
-            // p5.js doesn't natively export TIFF. 
-            // Typically you'd export PNG/JPG, then convert externally
-            alert("TIFF export isn't directly supported. Please export as PNG or JPG and convert if needed.");
+        /******************************************************
+         * High-Resolution Export
+         ******************************************************/
+        function exportHighRes(format) {
+          if (format === 'tiff') {
+            alert("TIFF export not supported in p5.js. Please export as PNG/JPG and convert externally.");
+            return;
           }
+
+          // Create an off-screen graphics buffer at EXPORT_SIZE
+          let pg = createGraphics(EXPORT_SIZE, EXPORT_SIZE);
+          // Avoid extra pixel density
+          pg.pixelDensity(1);
+
+          // Scale factor between interactive canvas and export canvas
+          let scaleFactor = EXPORT_SIZE / INTERACTIVE_SIZE;
+
+          // Draw all actions at high resolution
+          pg.background(255);
+          for (let action of actions) {
+            drawAction(action, pg, scaleFactor);
+          }
+
+          // Convert to data URL
+          let mimeType = (format === 'png') ? 'image/png' : 'image/jpeg';
+          let dataURL = pg.canvas.toDataURL(mimeType);
+
+          // Trigger download
+          let filename = 'myScarfDesign.' + format;
+          let a = createA(dataURL, filename);
+          a.elt.download = filename;
+          a.elt.click();
+
+          // Clean up
+          pg.remove();
         }
 
-        /*******************************************
-         * SETUP UI
-         *******************************************/
+        /******************************************************
+         * UI Setup
+         ******************************************************/
         function setupUI() {
           // Color Picker
           select('#colorPicker').changed(() => {
@@ -365,10 +441,10 @@
 
           // Brush Size
           select('#brushSizeSlider').changed(() => {
-            brushSize = select('#brushSizeSlider').value();
+            brushSize = parseInt(select('#brushSizeSlider').value());
           });
 
-          // Tool Buttons
+          // Tools
           select('#brushToolBtn').mousePressed(() => {
             currentTool = 'brush';
           });
@@ -376,7 +452,7 @@
             currentTool = 'eraser';
           });
 
-          // Undo / Redo
+          // Undo/Redo
           select('#undoBtn').mousePressed(undoAction);
           select('#redoBtn').mousePressed(redoAction);
 
@@ -384,11 +460,11 @@
           select('#startNewBtn').mousePressed(() => {
             let confirmNew = confirm("Start a new project? Unsaved work will be lost.");
             if (confirmNew) {
-              background(255);
+              actions = [];
               history = [];
               historyIndex = -1;
-              shapes = [];
-              saveState();
+              background(255);
+              saveHistory();
             }
           });
 
@@ -397,15 +473,14 @@
           select('#exportProjectBtn').mousePressed(exportProject);
 
           // Text Fill
-          select('#textFillBtn').mousePressed(textFillShape);
+          select('#textFillBtn').mousePressed(fillLastShape);
 
           // Export Image
-          select('#exportPngBtn').mousePressed(() => exportImage('png'));
-          select('#exportJpgBtn').mousePressed(() => exportImage('jpg'));
-          select('#exportTiffBtn').mousePressed(() => exportImage('tiff'));
+          select('#exportPngBtn').mousePressed(() => exportHighRes('png'));
+          select('#exportJpgBtn').mousePressed(() => exportHighRes('jpg'));
+          select('#exportTiffBtn').mousePressed(() => exportHighRes('tiff'));
         }
       </script>
     </div>
   </body>
 </html>
-
