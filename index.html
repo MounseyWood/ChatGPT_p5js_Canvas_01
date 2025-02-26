@@ -2,12 +2,12 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Scarf Drawing App - Updated</title>
+    <title>Scarf Drawing App (British English)</title>
     <style>
       body {
         margin: 0;
         display: flex;
-        background-color: #333;
+        background-color: #333; /* Must remain 'color' for valid CSS */
         color: #fff;
         font-family: sans-serif;
       }
@@ -25,7 +25,7 @@
         overflow: hidden;
       }
       #myCanvas {
-        background-color: #fff;
+        background-color: #fff; /* The main white drawing area */
         display: block;
       }
       .tool-section {
@@ -47,7 +47,9 @@
         flex-wrap: wrap;
         gap: 5px;
       }
-      .color-swatch, .nib-swatch {
+      /* Updated class name to 'colour-swatch' */
+      .colour-swatch,
+      .nib-swatch {
         width: 30px;
         height: 30px;
         border: 2px solid #fff;
@@ -56,7 +58,7 @@
         align-items: center;
         justify-content: center;
       }
-      .color-swatch.active,
+      .colour-swatch.active,
       .nib-swatch.active {
         border: 2px solid yellow;
       }
@@ -74,8 +76,8 @@
 
       <!-- Colour Palette -->
       <div class="tool-section">
-        <label>Color:</label>
-        <div class="swatch-container" id="colorSwatches"></div>
+        <label>Colour:</label>
+        <div class="swatch-container" id="colourSwatches"></div>
       </div>
 
       <!-- Brush Settings -->
@@ -142,31 +144,31 @@
 
     <!-- Canvas Container (Right) -->
     <div id="canvas-container">
-      <!-- p5.js Library -->
+      <!-- Make sure p5.js is loaded BEFORE this script -->
       <script src="https://cdn.jsdelivr.net/npm/p5@1.4.0/lib/p5.js"></script>
       <script>
         /******************************************************
-         * SCARF DRAWING APP - Updated
-         * - Scatter stored once (no "live" jitter)
-         * - Circle/Square nibs = smooth line
-         * - Calligraphy nib = angled stamps
-         * - Visible nib swatches
-         * - Black background behind white drawing area
+         * SCARF DRAWING APP - British English Version
+         *  - Variables & UI text use 'colour' instead of 'color'
+         *  - Circle/Square nibs = smooth lines
+         *  - Calligraphy nib = angled stamps
+         *  - Scatter is one-time offset per stroke point
+         *  - Black background behind white drawing area
          ******************************************************/
 
         // Interactive canvas dimensions
         const INTERACTIVE_SIZE = 1000;
 
-        // High-res export dimensions
-        const EXPORT_SIZE = 7087; // ~90cm @200DPI
+        // High-res export dimensions (approx. 90 cm @ 200 DPI)
+        const EXPORT_SIZE = 7087;
 
         // Zoom & pan
         let scaleFactor = 1.0;
         let offsetX = 0;
         let offsetY = 0;
 
-        // Brush settings
-        let brushColor = '#000000';
+        // Brush settings (British English)
+        let brushColour = '#000000';
         let brushSize = 10;
         let scatterAmount = 0;
         let nibType = 'circle'; // 'circle' | 'square' | 'calligraphy'
@@ -187,8 +189,8 @@
         let history = [];
         let historyIndex = -1;
 
-        // Predefined color swatches
-        const SWATCH_COLORS = ['#000000','#FFFFFF','#FF0000','#00FF00','#0000FF'];
+        // Predefined colour swatches
+        const SWATCH_COLOURS = ['#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF'];
 
         // Nib options to display
         const NIB_OPTIONS = ['circle','square','calligraphy'];
@@ -204,10 +206,8 @@
 
           setupUI();
 
-          // Start with a blank white drawing area
-          centerCanvasInContainer();
-
-          // Save initial blank state
+          // Start with an empty state
+          centreCanvasInContainer();
           saveHistory();
         }
 
@@ -253,7 +253,7 @@
         /******************************************************
          * Zoom & Pan Helpers
          ******************************************************/
-        function centerCanvasInContainer() {
+        function centreCanvasInContainer() {
           let containerWidth = document.getElementById('canvas-container').clientWidth;
           let containerHeight = document.getElementById('canvas-container').clientHeight;
           offsetX = (containerWidth - (INTERACTIVE_SIZE * scaleFactor)) / 2;
@@ -277,7 +277,7 @@
 
         function mousePressed() {
           if (!mouseInCanvas()) return;
-          if (mouseButton === CENTER) return; // Middle mouse for pan only
+          if (mouseButton === CENTER) return; // Middle mouse for panning
 
           let wPos = screenToWorld(mouseX, mouseY);
 
@@ -292,7 +292,8 @@
               currentStroke = {
                 type: 'stroke',
                 nib: nibType,
-                color: (currentTool === 'eraser') ? '#FFFFFF' : brushColor,
+                // Eraser is white
+                colour: (currentTool === 'eraser') ? '#FFFFFF' : brushColour,
                 size: brushSize,
                 scatter: scatterAmount,
                 points: []
@@ -326,7 +327,7 @@
 
           if (isDrawingShape) {
             isDrawingShape = false;
-            // shape is stored in tempShape; fill it when user clicks "Fill Last Shape"
+            // shape is in tempShape; fill it on user request
           } else if (isDrawingStroke && currentStroke) {
             actions.push(currentStroke);
             isDrawingStroke = false;
@@ -361,7 +362,7 @@
         function addStrokePoint(strokeObj, wPos) {
           let offx = 0;
           let offy = 0;
-          // If scatter > 0, offset once per point
+          // Scatter is a one-time offset
           if (strokeObj.scatter > 0) {
             offx = random(-strokeObj.scatter, strokeObj.scatter);
             offy = random(-strokeObj.scatter, strokeObj.scatter);
@@ -384,16 +385,16 @@
         // Calligraphy nib = angled stamping
         function drawStroke(strokeAction) {
           let pts = strokeAction.points;
-          if (pts.length < 2) return; // Not enough points to draw
+          if (pts.length < 2) return;
 
           let nib = strokeAction.nib;
-          let col = strokeAction.color;
+          let colour = strokeAction.colour;
           let sz = strokeAction.size;
 
           if (nib === 'calligraphy') {
             // Stamping approach
             noStroke();
-            fill(col);
+            fill(colour);
             for (let i = 0; i < pts.length; i++) {
               let px = pts[i].x + pts[i].offx;
               let py = pts[i].y + pts[i].offy;
@@ -413,14 +414,13 @@
               pop();
             }
           } else {
-            // Smooth line approach for circle or square
-            stroke(col);
+            // Smooth line for circle or square nib
+            stroke(colour);
             strokeWeight(sz);
             if (nib === 'circle') {
               strokeCap(ROUND);
               strokeJoin(ROUND);
             } else {
-              // square nib
               strokeCap(SQUARE);
               strokeJoin(BEVEL);
             }
@@ -452,7 +452,7 @@
             type: 'fillShape',
             shape: [...tempShape],
             text: textString,
-            color: brushColor,
+            colour: brushColour,
             textSize: txtSize,
             spacing: spacing
           };
@@ -464,12 +464,12 @@
         function drawShapeFill(action) {
           let shape = action.shape;
           let textString = action.text;
-          let fillColor = action.color;
+          let fillColour = action.colour;
           let txtSize = action.textSize;
           let spacing = action.spacing;
 
           push();
-          fill(fillColor);
+          fill(fillColour);
           noStroke();
           textSize(txtSize);
 
@@ -494,7 +494,7 @@
           for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
             let xi = vertices[i].x, yi = vertices[i].y;
             let xj = vertices[j].x, yj = vertices[j].y;
-            let intersect = ((yi > testy) != (yj > testy)) &&
+            let intersect = ((yi > testy) !== (yj > testy)) &&
               (testx < (xj - xi) * (testy - yi) / (yj - yi) + xi);
             if (intersect) c = !c;
           }
@@ -506,7 +506,7 @@
          ******************************************************/
         function saveHistory() {
           historyIndex++;
-          // Remove any forward states
+          // Remove forward states if any
           if (historyIndex < history.length) {
             history.splice(historyIndex);
           }
@@ -579,7 +579,7 @@
           let exportScale = EXPORT_SIZE / INTERACTIVE_SIZE;
           pg.background(255);
 
-          // Re-draw each action in off-screen buffer
+          // Re-draw each action in the off-screen buffer
           for (let action of actions) {
             drawActionHighRes(action, pg, exportScale);
           }
@@ -610,12 +610,12 @@
           if (pts.length < 2) return;
 
           let nib = strokeAction.nib;
-          let col = strokeAction.color;
+          let strokeColour = strokeAction.colour;
           let sz = strokeAction.size * scale;
 
           if (nib === 'calligraphy') {
             pg.noStroke();
-            pg.fill(col);
+            pg.fill(strokeColour);
             for (let i = 0; i < pts.length; i++) {
               let px = (pts[i].x + pts[i].offx) * scale;
               let py = (pts[i].y + pts[i].offy) * scale;
@@ -637,7 +637,7 @@
           } else {
             // Smooth line
             pg.push();
-            pg.stroke(col);
+            pg.stroke(strokeColour);
             pg.strokeWeight(sz);
             if (nib === 'circle') {
               pg.strokeCap(pg.ROUND);
@@ -662,11 +662,12 @@
         function drawShapeFillHighRes(action, pg, scale) {
           let shape = action.shape;
           let textString = action.text;
-          let fillColor = action.color;
+          let fillColour = action.colour;
           let txtSize = action.textSize * scale;
           let spacing = action.spacing;
+
           pg.push();
-          pg.fill(fillColor);
+          pg.fill(fillColour);
           pg.noStroke();
           pg.textSize(txtSize);
 
@@ -689,19 +690,19 @@
          * UI Setup
          ******************************************************/
         function setupUI() {
-          // Color Swatches
-          let swatchContainer = select('#colorSwatches');
-          SWATCH_COLORS.forEach((col, idx) => {
+          // Build colour swatches
+          let swatchContainer = select('#colourSwatches');
+          SWATCH_COLOURS.forEach((clr, idx) => {
             let div = createDiv();
-            div.class('color-swatch');
-            div.style('background-color', col);
+            div.class('colour-swatch');
+            div.style('background-color', clr); // Must remain 'background-color' for valid CSS
             div.parent(swatchContainer);
             div.mousePressed(() => {
-              brushColor = col;
+              brushColour = clr;
               updateActiveSwatch(swatchContainer.elt.children, div.elt);
             });
             if (idx === 0) {
-              // Default color
+              // Default
               div.classList.add('active');
             }
           });
@@ -712,7 +713,7 @@
             let div = createDiv();
             div.class('nib-swatch');
             div.parent(nibContainer);
-            div.html(`<span>${nib}</span>`); // simple text label
+            div.html(`<span>${nib}</span>`); // Simple text label
             div.mousePressed(() => {
               nibType = nib;
               updateActiveSwatch(nibContainer.elt.children, div.elt);
@@ -768,7 +769,7 @@
           select('#exportTiffBtn').mousePressed(() => exportHighRes('tiff'));
         }
 
-        // Highlight the active swatch for color or nib
+        // Highlight the active swatch (for colour or nib)
         function updateActiveSwatch(siblingElements, activeElement) {
           for (let i = 0; i < siblingElements.length; i++) {
             siblingElements[i].classList.remove('active');
