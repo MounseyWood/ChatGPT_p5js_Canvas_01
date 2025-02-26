@@ -1,782 +1,764 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="UTF-8" />
-    <title>Scarf Drawing App (British English)</title>
-    <style>
-      body {
-        margin: 0;
-        display: flex;
-        background-color: #333; /* Must remain 'color' for valid CSS */
-        color: #fff;
-        font-family: sans-serif;
-      }
-      #ui-panel {
-        width: 280px;
-        padding: 10px;
-        box-sizing: border-box;
-      }
-      #canvas-container {
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background-color: #000; /* Black behind the drawing area */
-        overflow: hidden;
-      }
-      #myCanvas {
-        background-color: #fff; /* The main white drawing area */
-        display: block;
-      }
-      .tool-section {
-        margin-bottom: 15px;
-      }
-      .tool-section label {
-        display: block;
-        margin-bottom: 5px;
-      }
-      button {
-        margin: 3px 0;
-        cursor: pointer;
-      }
-      input[type="range"] {
-        width: 100%;
-      }
-      .swatch-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 5px;
-      }
-      /* Updated class name to 'colour-swatch' */
-      .colour-swatch,
-      .nib-swatch {
-        width: 30px;
-        height: 30px;
-        border: 2px solid #fff;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .colour-swatch.active,
-      .nib-swatch.active {
-        border: 2px solid yellow;
-      }
-      .nib-swatch span {
-        pointer-events: none;
-        font-size: 12px;
-        text-transform: capitalize;
-      }
-    </style>
-  </head>
-  <body>
-    <!-- UI Panel (Left) -->
-    <div id="ui-panel">
-      <h2>Scarf Drawing App</h2>
+<head>
+  <meta charset="UTF-8" />
+  <title>Scarf Drawing App (British English)</title>
 
-      <!-- Colour Palette -->
-      <div class="tool-section">
-        <label>Colour:</label>
-        <div class="swatch-container" id="colourSwatches"></div>
-      </div>
+  <!-- 1. Load p5.js library FIRST -->
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.4.0/lib/p5.js"></script>
 
-      <!-- Brush Settings -->
-      <div class="tool-section">
-        <label for="brushSizeSlider">Brush Size:</label>
-        <input type="range" id="brushSizeSlider" min="1" max="100" value="10" />
+  <!-- 2. Basic styling -->
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      background-color: #333; /* Must remain 'color' for valid CSS */
+      color: #fff;
+      font-family: sans-serif;
+    }
+    #ui-panel {
+      width: 280px;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    #canvas-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #000; /* Black behind the drawing area */
+      overflow: hidden;
+    }
+    #myCanvas {
+      background-color: #fff; /* The main white drawing area */
+      display: block;
+    }
+    .tool-section {
+      margin-bottom: 15px;
+    }
+    .tool-section label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    button {
+      margin: 3px 0;
+      cursor: pointer;
+    }
+    input[type="range"] {
+      width: 100%;
+    }
+    .swatch-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+    .colour-swatch,
+    .nib-swatch {
+      width: 30px;
+      height: 30px;
+      border: 2px solid #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .colour-swatch.active,
+    .nib-swatch.active {
+      border: 2px solid yellow;
+    }
+    .nib-swatch span {
+      pointer-events: none;
+      font-size: 12px;
+      text-transform: capitalize;
+    }
+  </style>
+</head>
 
-        <label for="scatterSlider">Scatter:</label>
-        <input type="range" id="scatterSlider" min="0" max="50" value="0" />
-      </div>
+<body>
+  <!-- UI Panel (Left) -->
+  <div id="ui-panel">
+    <h2>Scarf Drawing App</h2>
 
-      <!-- Nib Swatches -->
-      <div class="tool-section">
-        <label>Nib:</label>
-        <div class="swatch-container" id="nibSwatches"></div>
-      </div>
-
-      <!-- Tools: Brush / Eraser -->
-      <div class="tool-section">
-        <button id="brushToolBtn">Brush Tool</button>
-        <button id="eraserToolBtn">Eraser</button>
-      </div>
-
-      <!-- Undo / Redo -->
-      <div class="tool-section">
-        <button id="undoBtn">Undo</button>
-        <button id="redoBtn">Redo</button>
-      </div>
-
-      <!-- Start New / Import / Export Project -->
-      <div class="tool-section">
-        <button id="startNewBtn">Start New</button>
-        <button id="importProjectBtn">Import Project</button>
-        <button id="exportProjectBtn">Export Project</button>
-      </div>
-
-      <!-- Text Fill Options -->
-      <div class="tool-section">
-        <label for="textInput">Text Fill Content:</label>
-        <input type="text" id="textInput" placeholder="@ or # etc." />
-        
-        <label for="textSizeInput">Text Size:</label>
-        <input type="number" id="textSizeInput" min="5" max="200" value="20" />
-        
-        <label for="textSpacingInput">Text Spacing:</label>
-        <input type="number" id="textSpacingInput" min="1" max="100" value="25" />
-        
-        <button id="textFillBtn">Fill Last Shape</button>
-      </div>
-
-      <!-- Export Image -->
-      <div class="tool-section">
-        <button id="exportPngBtn">Export PNG</button>
-        <button id="exportJpgBtn">Export JPG</button>
-        <button id="exportTiffBtn">Export TIFF</button>
-      </div>
-
-      <p style="font-size: 0.85em;">
-        <strong>Tip:</strong> Hold <em>Shift</em> + drag (left mouse) on the canvas to define a shape for text fill.<br/>
-        <strong>Zoom:</strong> Mouse wheel <br/>
-        <strong>Pan:</strong> Middle mouse drag (or hold the mouse wheel)
-      </p>
+    <!-- Colour Palette -->
+    <div class="tool-section">
+      <label>Colour:</label>
+      <div class="swatch-container" id="colourSwatches"></div>
     </div>
 
-    <!-- Canvas Container (Right) -->
-    <div id="canvas-container">
-      <!-- Make sure p5.js is loaded BEFORE this script -->
-      <script src="https://cdn.jsdelivr.net/npm/p5@1.4.0/lib/p5.js"></script>
-      <script>
-        /******************************************************
-         * SCARF DRAWING APP - British English Version
-         *  - Variables & UI text use 'colour' instead of 'color'
-         *  - Circle/Square nibs = smooth lines
-         *  - Calligraphy nib = angled stamps
-         *  - Scatter is one-time offset per stroke point
-         *  - Black background behind white drawing area
-         ******************************************************/
+    <!-- Brush Settings -->
+    <div class="tool-section">
+      <label for="brushSizeSlider">Brush Size:</label>
+      <input type="range" id="brushSizeSlider" min="1" max="100" value="10" />
 
-        // Interactive canvas dimensions
-        const INTERACTIVE_SIZE = 1000;
+      <label for="scatterSlider">Scatter:</label>
+      <input type="range" id="scatterSlider" min="0" max="50" value="0" />
+    </div>
 
-        // High-res export dimensions (approx. 90 cm @ 200 DPI)
-        const EXPORT_SIZE = 7087;
+    <!-- Nib Swatches -->
+    <div class="tool-section">
+      <label>Nib:</label>
+      <div class="swatch-container" id="nibSwatches"></div>
+    </div>
 
-        // Zoom & pan
-        let scaleFactor = 1.0;
-        let offsetX = 0;
-        let offsetY = 0;
+    <!-- Tools: Brush / Eraser -->
+    <div class="tool-section">
+      <button id="brushToolBtn">Brush Tool</button>
+      <button id="eraserToolBtn">Eraser</button>
+    </div>
 
-        // Brush settings (British English)
-        let brushColour = '#000000';
-        let brushSize = 10;
-        let scatterAmount = 0;
-        let nibType = 'circle'; // 'circle' | 'square' | 'calligraphy'
-        let currentTool = 'brush'; // 'brush' or 'eraser'
+    <!-- Undo / Redo -->
+    <div class="tool-section">
+      <button id="undoBtn">Undo</button>
+      <button id="redoBtn">Redo</button>
+    </div>
 
-        // Actions (strokes & shape fills)
-        let actions = [];
+    <!-- Start New / Import / Export Project -->
+    <div class="tool-section">
+      <button id="startNewBtn">Start New</button>
+      <button id="importProjectBtn">Import Project</button>
+      <button id="exportProjectBtn">Export Project</button>
+    </div>
 
-        // Current stroke
-        let currentStroke = null;
-        let isDrawingStroke = false;
+    <!-- Text Fill Options -->
+    <div class="tool-section">
+      <label for="textInput">Text Fill Content:</label>
+      <input type="text" id="textInput" placeholder="@ or # etc." />
+      
+      <label for="textSizeInput">Text Size:</label>
+      <input type="number" id="textSizeInput" min="5" max="200" value="20" />
+      
+      <label for="textSpacingInput">Text Spacing:</label>
+      <input type="number" id="textSpacingInput" min="1" max="100" value="25" />
+      
+      <button id="textFillBtn">Fill Last Shape</button>
+    </div>
 
-        // Shape capture
-        let tempShape = [];
-        let isDrawingShape = false;
+    <!-- Export Image -->
+    <div class="tool-section">
+      <button id="exportPngBtn">Export PNG</button>
+      <button id="exportJpgBtn">Export JPG</button>
+      <button id="exportTiffBtn">Export TIFF</button>
+    </div>
 
-        // Undo/Redo
-        let history = [];
-        let historyIndex = -1;
+    <p style="font-size: 0.85em;">
+      <strong>Tip:</strong> Hold <em>Shift</em> + drag (left mouse) on the canvas to define a shape for text fill.<br/>
+      <strong>Zoom:</strong> Mouse wheel <br/>
+      <strong>Pan:</strong> Middle mouse drag (or hold the mouse wheel)
+    </p>
+  </div>
 
-        // Predefined colour swatches
-        const SWATCH_COLOURS = ['#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF'];
+  <!-- Canvas Container (Right) -->
+  <div id="canvas-container">
+    <!-- 3. Our sketch code goes here -->
+    <script>
+      /******************************************************
+       * SCARF DRAWING APP - British English
+       ******************************************************/
 
-        // Nib options to display
-        const NIB_OPTIONS = ['circle','square','calligraphy'];
+      // Interactive canvas dimensions
+      const INTERACTIVE_SIZE = 1000;
 
-        function setup() {
-          let cnv = createCanvas(INTERACTIVE_SIZE, INTERACTIVE_SIZE);
-          cnv.id('myCanvas');
-          pixelDensity(1);
+      // High-res export dimensions
+      const EXPORT_SIZE = 7087; // ~90cm @ 200DPI
 
-          // Place canvas in the container
-          let container = select('#canvas-container');
-          cnv.parent(container);
+      // Zoom & pan
+      let scaleFactor = 1.0;
+      let offsetX = 0;
+      let offsetY = 0;
 
-          setupUI();
+      // Brush settings (British English)
+      let brushColour = '#000000';
+      let brushSize = 10;
+      let scatterAmount = 0;
+      let nibType = 'circle'; // 'circle' | 'square' | 'calligraphy'
+      let currentTool = 'brush'; // 'brush' or 'eraser'
 
-          // Start with an empty state
-          centreCanvasInContainer();
-          saveHistory();
+      // Actions (strokes & shape fills)
+      let actions = [];
+
+      // Current stroke
+      let currentStroke = null;
+      let isDrawingStroke = false;
+
+      // Shape capture
+      let tempShape = [];
+      let isDrawingShape = false;
+
+      // Undo/Redo
+      let history = [];
+      let historyIndex = -1;
+
+      // Predefined colour swatches
+      const SWATCH_COLOURS = ['#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF'];
+
+      // Nib options to display
+      const NIB_OPTIONS = ['circle','square','calligraphy'];
+
+      function setup() {
+        let cnv = createCanvas(INTERACTIVE_SIZE, INTERACTIVE_SIZE);
+        cnv.id('myCanvas');
+        pixelDensity(1);
+
+        // Place canvas in the container
+        let container = select('#canvas-container');
+        cnv.parent(container);
+
+        setupUI();
+
+        // Start with a blank project
+        centreCanvasInContainer();
+        saveHistory();
+      }
+
+      function draw() {
+        background(0); // black behind the scaled "world"
+
+        push();
+        translate(offsetX, offsetY);
+        scale(scaleFactor);
+
+        // White "world" area
+        noStroke();
+        fill(255);
+        rect(0, 0, INTERACTIVE_SIZE, INTERACTIVE_SIZE);
+
+        // Draw all actions
+        for (let action of actions) {
+          drawAction(action);
         }
 
-        function draw() {
-          // Black background behind the scaled "world"
-          background(0);
-
-          // Zoom & pan
-          push();
-          translate(offsetX, offsetY);
-          scale(scaleFactor);
-
-          // White "world" area
-          noStroke();
-          fill(255);
-          rect(0, 0, INTERACTIVE_SIZE, INTERACTIVE_SIZE);
-
-          // Draw all actions
-          for (let action of actions) {
-            drawAction(action);
-          }
-
-          // If drawing a stroke, preview it
-          if (isDrawingStroke && currentStroke) {
-            drawAction(currentStroke);
-          }
-
-          // If capturing a shape, draw the preview line
-          if (isDrawingShape && tempShape.length > 1) {
-            stroke('#0f0');
-            strokeWeight(1);
-            noFill();
-            for (let i = 1; i < tempShape.length; i++) {
-              let p1 = tempShape[i-1];
-              let p2 = tempShape[i];
-              line(p1.x, p1.y, p2.x, p2.y);
-            }
-          }
-
-          pop();
+        // If drawing a stroke, preview it
+        if (isDrawingStroke && currentStroke) {
+          drawAction(currentStroke);
         }
 
-        /******************************************************
-         * Zoom & Pan Helpers
-         ******************************************************/
-        function centreCanvasInContainer() {
-          let containerWidth = document.getElementById('canvas-container').clientWidth;
-          let containerHeight = document.getElementById('canvas-container').clientHeight;
-          offsetX = (containerWidth - (INTERACTIVE_SIZE * scaleFactor)) / 2;
-          offsetY = (containerHeight - (INTERACTIVE_SIZE * scaleFactor)) / 2;
-        }
-
-        function mouseWheel(event) {
-          let zoomAmount = 0.001 * event.delta;
-          let oldScale = scaleFactor;
-          scaleFactor -= zoomAmount;
-          scaleFactor = constrain(scaleFactor, 0.1, 10);
-
-          // Keep mouse position stable
-          let worldPosBefore = screenToWorld(mouseX, mouseY, oldScale);
-          let worldPosAfter = screenToWorld(mouseX, mouseY, scaleFactor);
-          offsetX += (worldPosAfter.x - worldPosBefore.x) * scaleFactor;
-          offsetY += (worldPosAfter.y - worldPosBefore.y) * scaleFactor;
-
-          return false; // Prevent default scrolling
-        }
-
-        function mousePressed() {
-          if (!mouseInCanvas()) return;
-          if (mouseButton === CENTER) return; // Middle mouse for panning
-
-          let wPos = screenToWorld(mouseX, mouseY);
-
-          if (mouseButton === LEFT) {
-            if (keyIsDown(SHIFT)) {
-              // Start capturing shape
-              isDrawingShape = true;
-              tempShape = [ wPos ];
-            } else {
-              // Start a stroke
-              isDrawingStroke = true;
-              currentStroke = {
-                type: 'stroke',
-                nib: nibType,
-                // Eraser is white
-                colour: (currentTool === 'eraser') ? '#FFFFFF' : brushColour,
-                size: brushSize,
-                scatter: scatterAmount,
-                points: []
-              };
-              addStrokePoint(currentStroke, wPos);
-            }
+        // If capturing a shape, draw the preview line
+        if (isDrawingShape && tempShape.length > 1) {
+          stroke('#0f0');
+          strokeWeight(1);
+          noFill();
+          for (let i = 1; i < tempShape.length; i++) {
+            let p1 = tempShape[i-1];
+            let p2 = tempShape[i];
+            line(p1.x, p1.y, p2.x, p2.y);
           }
         }
 
-        function mouseDragged() {
-          // Middle mouse drag = panning
-          if (mouseButton === CENTER) {
-            offsetX += (mouseX - pmouseX);
-            offsetY += (mouseY - pmouseY);
-            return;
-          }
+        pop();
+      }
 
-          if (!mouseInCanvas()) return;
+      /******************************************************
+       * Zoom & Pan
+       ******************************************************/
+      function centreCanvasInContainer() {
+        let containerWidth = document.getElementById('canvas-container').clientWidth;
+        let containerHeight = document.getElementById('canvas-container').clientHeight;
+        offsetX = (containerWidth - (INTERACTIVE_SIZE * scaleFactor)) / 2;
+        offsetY = (containerHeight - (INTERACTIVE_SIZE * scaleFactor)) / 2;
+      }
 
-          let wPos = screenToWorld(mouseX, mouseY);
+      function mouseWheel(event) {
+        let zoomAmount = 0.001 * event.delta;
+        let oldScale = scaleFactor;
+        scaleFactor -= zoomAmount;
+        scaleFactor = constrain(scaleFactor, 0.1, 10);
 
-          if (isDrawingShape) {
-            tempShape.push(wPos);
-          } else if (isDrawingStroke && currentStroke) {
+        let worldPosBefore = screenToWorld(mouseX, mouseY, oldScale);
+        let worldPosAfter = screenToWorld(mouseX, mouseY, scaleFactor);
+        offsetX += (worldPosAfter.x - worldPosBefore.x) * scaleFactor;
+        offsetY += (worldPosAfter.y - worldPosBefore.y) * scaleFactor;
+
+        return false; // prevent default scroll
+      }
+
+      function mousePressed() {
+        if (!mouseInCanvas()) return;
+        if (mouseButton === CENTER) return; // Middle mouse = pan
+
+        let wPos = screenToWorld(mouseX, mouseY);
+
+        if (mouseButton === LEFT) {
+          if (keyIsDown(SHIFT)) {
+            // Start shape capture
+            isDrawingShape = true;
+            tempShape = [ wPos ];
+          } else {
+            // Start a stroke
+            isDrawingStroke = true;
+            currentStroke = {
+              type: 'stroke',
+              nib: nibType,
+              colour: (currentTool === 'eraser') ? '#FFFFFF' : brushColour,
+              size: brushSize,
+              scatter: scatterAmount,
+              points: []
+            };
             addStrokePoint(currentStroke, wPos);
           }
         }
+      }
 
-        function mouseReleased() {
-          if (mouseButton === CENTER) return; // finished panning
-
-          if (isDrawingShape) {
-            isDrawingShape = false;
-            // shape is in tempShape; fill it on user request
-          } else if (isDrawingStroke && currentStroke) {
-            actions.push(currentStroke);
-            isDrawingStroke = false;
-            currentStroke = null;
-            saveHistory();
-          }
+      function mouseDragged() {
+        if (mouseButton === CENTER) {
+          // Panning
+          offsetX += (mouseX - pmouseX);
+          offsetY += (mouseY - pmouseY);
+          return;
         }
 
-        // Convert screen coords to world coords
-        function screenToWorld(sx, sy, customScale = scaleFactor) {
-          return {
-            x: (sx - offsetX) / customScale,
-            y: (sy - offsetY) / customScale
-          };
+        if (!mouseInCanvas()) return;
+
+        let wPos = screenToWorld(mouseX, mouseY);
+
+        if (isDrawingShape) {
+          tempShape.push(wPos);
+        } else if (isDrawingStroke && currentStroke) {
+          addStrokePoint(currentStroke, wPos);
         }
+      }
 
-        // Check if mouse is within p5 canvas
-        function mouseInCanvas() {
-          let c = document.getElementById('myCanvas');
-          let bounds = c.getBoundingClientRect();
-          return (
-            mouseX >= 0 &&
-            mouseX <= bounds.width &&
-            mouseY >= 0 &&
-            mouseY <= bounds.height
-          );
-        }
+      function mouseReleased() {
+        if (mouseButton === CENTER) return; // Done panning
 
-        /******************************************************
-         * Adding Stroke Points (with scatter)
-         ******************************************************/
-        function addStrokePoint(strokeObj, wPos) {
-          let offx = 0;
-          let offy = 0;
-          // Scatter is a one-time offset
-          if (strokeObj.scatter > 0) {
-            offx = random(-strokeObj.scatter, strokeObj.scatter);
-            offy = random(-strokeObj.scatter, strokeObj.scatter);
-          }
-          strokeObj.points.push({ x: wPos.x, y: wPos.y, offx, offy });
-        }
-
-        /******************************************************
-         * Drawing Actions
-         ******************************************************/
-        function drawAction(action) {
-          if (action.type === 'stroke') {
-            drawStroke(action);
-          } else if (action.type === 'fillShape') {
-            drawShapeFill(action);
-          }
-        }
-
-        // Circle & Square nib = smooth line
-        // Calligraphy nib = angled stamping
-        function drawStroke(strokeAction) {
-          let pts = strokeAction.points;
-          if (pts.length < 2) return;
-
-          let nib = strokeAction.nib;
-          let colour = strokeAction.colour;
-          let sz = strokeAction.size;
-
-          if (nib === 'calligraphy') {
-            // Stamping approach
-            noStroke();
-            fill(colour);
-            for (let i = 0; i < pts.length; i++) {
-              let px = pts[i].x + pts[i].offx;
-              let py = pts[i].y + pts[i].offy;
-
-              push();
-              translate(px, py);
-              if (i > 0) {
-                let dx = pts[i].x - pts[i-1].x;
-                let dy = pts[i].y - pts[i-1].y;
-                let angle = atan2(dy, dx);
-                rotate(angle + radians(45));
-              } else {
-                rotate(radians(45));
-              }
-              rectMode(CENTER);
-              rect(0, 0, sz * 1.5, sz * 0.4);
-              pop();
-            }
-          } else {
-            // Smooth line for circle or square nib
-            stroke(colour);
-            strokeWeight(sz);
-            if (nib === 'circle') {
-              strokeCap(ROUND);
-              strokeJoin(ROUND);
-            } else {
-              strokeCap(SQUARE);
-              strokeJoin(BEVEL);
-            }
-            noFill();
-
-            beginShape();
-            for (let i = 0; i < pts.length; i++) {
-              let px = pts[i].x + pts[i].offx;
-              let py = pts[i].y + pts[i].offy;
-              vertex(px, py);
-            }
-            endShape();
-          }
-        }
-
-        /******************************************************
-         * Shape Fill with Text
-         ******************************************************/
-        function fillLastShape() {
-          if (tempShape.length < 3) {
-            alert("No valid shape captured. Hold SHIFT and drag to define a polygon.");
-            return;
-          }
-          let textString = select('#textInput').value() || "@";
-          let txtSize = parseInt(select('#textSizeInput').value());
-          let spacing = parseInt(select('#textSpacingInput').value());
-
-          let fillAction = {
-            type: 'fillShape',
-            shape: [...tempShape],
-            text: textString,
-            colour: brushColour,
-            textSize: txtSize,
-            spacing: spacing
-          };
-          actions.push(fillAction);
-          tempShape = [];
+        if (isDrawingShape) {
+          isDrawingShape = false;
+        } else if (isDrawingStroke && currentStroke) {
+          actions.push(currentStroke);
+          isDrawingStroke = false;
+          currentStroke = null;
           saveHistory();
         }
+      }
 
-        function drawShapeFill(action) {
-          let shape = action.shape;
-          let textString = action.text;
-          let fillColour = action.colour;
-          let txtSize = action.textSize;
-          let spacing = action.spacing;
+      function screenToWorld(sx, sy, customScale = scaleFactor) {
+        return {
+          x: (sx - offsetX) / customScale,
+          y: (sy - offsetY) / customScale
+        };
+      }
 
-          push();
-          fill(fillColour);
+      function mouseInCanvas() {
+        let c = document.getElementById('myCanvas');
+        let bounds = c.getBoundingClientRect();
+        return (
+          mouseX >= 0 &&
+          mouseX <= bounds.width &&
+          mouseY >= 0 &&
+          mouseY <= bounds.height
+        );
+      }
+
+      /******************************************************
+       * Stroke + Scatter
+       ******************************************************/
+      function addStrokePoint(strokeObj, wPos) {
+        let offx = 0;
+        let offy = 0;
+        if (strokeObj.scatter > 0) {
+          offx = random(-strokeObj.scatter, strokeObj.scatter);
+          offy = random(-strokeObj.scatter, strokeObj.scatter);
+        }
+        strokeObj.points.push({ x: wPos.x, y: wPos.y, offx, offy });
+      }
+
+      /******************************************************
+       * Draw Actions
+       ******************************************************/
+      function drawAction(action) {
+        if (action.type === 'stroke') {
+          drawStroke(action);
+        } else if (action.type === 'fillShape') {
+          drawShapeFill(action);
+        }
+      }
+
+      function drawStroke(strokeAction) {
+        let pts = strokeAction.points;
+        if (pts.length < 2) return;
+
+        let nib = strokeAction.nib;
+        let colour = strokeAction.colour;
+        let sz = strokeAction.size;
+
+        if (nib === 'calligraphy') {
           noStroke();
-          textSize(txtSize);
+          fill(colour);
+          for (let i = 0; i < pts.length; i++) {
+            let px = pts[i].x + pts[i].offx;
+            let py = pts[i].y + pts[i].offy;
 
-          let minX = Math.min(...shape.map(pt => pt.x));
-          let maxX = Math.max(...shape.map(pt => pt.x));
-          let minY = Math.min(...shape.map(pt => pt.y));
-          let maxY = Math.max(...shape.map(pt => pt.y));
-
-          for (let y = minY; y < maxY; y += spacing) {
-            for (let x = minX; x < maxX; x += spacing) {
-              if (pnpoly(shape, x, y)) {
-                text(textString, x, y);
-              }
-            }
-          }
-          pop();
-        }
-
-        // Point in polygon
-        function pnpoly(vertices, testx, testy) {
-          let c = false;
-          for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
-            let xi = vertices[i].x, yi = vertices[i].y;
-            let xj = vertices[j].x, yj = vertices[j].y;
-            let intersect = ((yi > testy) !== (yj > testy)) &&
-              (testx < (xj - xi) * (testy - yi) / (yj - yi) + xi);
-            if (intersect) c = !c;
-          }
-          return c;
-        }
-
-        /******************************************************
-         * Undo/Redo
-         ******************************************************/
-        function saveHistory() {
-          historyIndex++;
-          // Remove forward states if any
-          if (historyIndex < history.length) {
-            history.splice(historyIndex);
-          }
-          let snapshot = JSON.parse(JSON.stringify(actions));
-          history.push(snapshot);
-        }
-
-        function undoAction() {
-          if (historyIndex > 0) {
-            historyIndex--;
-            actions = JSON.parse(JSON.stringify(history[historyIndex]));
-          }
-        }
-
-        function redoAction() {
-          if (historyIndex < history.length - 1) {
-            historyIndex++;
-            actions = JSON.parse(JSON.stringify(history[historyIndex]));
-          }
-        }
-
-        /******************************************************
-         * Project Import / Export (JSON)
-         ******************************************************/
-        function importProject() {
-          let input = createFileInput(handleFile);
-          input.elt.click();
-
-          function handleFile(file) {
-            if (file.type === 'application' || file.subtype === 'json') {
-              let data = JSON.parse(file.data);
-              if (!data.actions) {
-                alert("Invalid project file.");
-                return;
-              }
-              actions = data.actions;
-              history = [];
-              historyIndex = -1;
-              saveHistory();
+            push();
+            translate(px, py);
+            if (i > 0) {
+              let dx = pts[i].x - pts[i-1].x;
+              let dy = pts[i].y - pts[i-1].y;
+              let angle = atan2(dy, dx);
+              rotate(angle + radians(45));
             } else {
-              alert("Please select a valid project JSON file.");
+              rotate(radians(45));
             }
+            rectMode(CENTER);
+            rect(0, 0, sz * 1.5, sz * 0.4);
+            pop();
           }
-        }
-
-        function exportProject() {
-          let projectData = {
-            actions: actions
-          };
-          let blob = new Blob([JSON.stringify(projectData)], { type: "application/json" });
-          let url = URL.createObjectURL(blob);
-
-          let a = createA(url, 'project.json');
-          a.elt.download = 'project.json';
-          a.elt.click();
-        }
-
-        /******************************************************
-         * High-Res Export
-         ******************************************************/
-        function exportHighRes(format) {
-          if (format === 'tiff') {
-            alert("TIFF export not supported in p5.js. Export as PNG/JPG and convert externally.");
-            return;
-          }
-
-          let pg = createGraphics(EXPORT_SIZE, EXPORT_SIZE);
-          pg.pixelDensity(1);
-
-          let exportScale = EXPORT_SIZE / INTERACTIVE_SIZE;
-          pg.background(255);
-
-          // Re-draw each action in the off-screen buffer
-          for (let action of actions) {
-            drawActionHighRes(action, pg, exportScale);
-          }
-
-          let mimeType = (format === 'png') ? 'image/png' : 'image/jpeg';
-          let dataURL = pg.canvas.toDataURL(mimeType);
-
-          let filename = 'myScarfDesign.' + format;
-          let a = createA(dataURL, filename);
-          a.elt.download = filename;
-          a.elt.click();
-
-          pg.remove();
-        }
-
-        // High-res version of drawAction
-        function drawActionHighRes(action, pg, scale) {
-          if (action.type === 'stroke') {
-            drawStrokeHighRes(action, pg, scale);
-          } else if (action.type === 'fillShape') {
-            drawShapeFillHighRes(action, pg, scale);
-          }
-        }
-
-        // Circle/Square nib = line approach; Calligraphy = stamp approach
-        function drawStrokeHighRes(strokeAction, pg, scale) {
-          let pts = strokeAction.points;
-          if (pts.length < 2) return;
-
-          let nib = strokeAction.nib;
-          let strokeColour = strokeAction.colour;
-          let sz = strokeAction.size * scale;
-
-          if (nib === 'calligraphy') {
-            pg.noStroke();
-            pg.fill(strokeColour);
-            for (let i = 0; i < pts.length; i++) {
-              let px = (pts[i].x + pts[i].offx) * scale;
-              let py = (pts[i].y + pts[i].offy) * scale;
-
-              pg.push();
-              pg.translate(px, py);
-              if (i > 0) {
-                let dx = pts[i].x - pts[i-1].x;
-                let dy = pts[i].y - pts[i-1].y;
-                let angle = pg.atan2(dy, dx);
-                pg.rotate(angle + pg.radians(45));
-              } else {
-                pg.rotate(pg.radians(45));
-              }
-              pg.rectMode(pg.CENTER);
-              pg.rect(0, 0, sz * 1.5, sz * 0.4);
-              pg.pop();
-            }
+        } else {
+          // Circle or Square nib => smooth line
+          stroke(colour);
+          strokeWeight(sz);
+          if (nib === 'circle') {
+            strokeCap(ROUND);
+            strokeJoin(ROUND);
           } else {
-            // Smooth line
+            strokeCap(SQUARE);
+            strokeJoin(BEVEL);
+          }
+          noFill();
+
+          beginShape();
+          for (let i = 0; i < pts.length; i++) {
+            let px = pts[i].x + pts[i].offx;
+            let py = pts[i].y + pts[i].offy;
+            vertex(px, py);
+          }
+          endShape();
+        }
+      }
+
+      /******************************************************
+       * Shape Fill with Text
+       ******************************************************/
+      function fillLastShape() {
+        if (tempShape.length < 3) {
+          alert("No valid shape captured. Hold SHIFT and drag to define a polygon.");
+          return;
+        }
+        let textString = select('#textInput').value() || "@";
+        let txtSize = parseInt(select('#textSizeInput').value());
+        let spacing = parseInt(select('#textSpacingInput').value());
+
+        let fillAction = {
+          type: 'fillShape',
+          shape: [...tempShape],
+          text: textString,
+          colour: brushColour,
+          textSize: txtSize,
+          spacing: spacing
+        };
+        actions.push(fillAction);
+        tempShape = [];
+        saveHistory();
+      }
+
+      function drawShapeFill(action) {
+        let shape = action.shape;
+        let textString = action.text;
+        let fillColour = action.colour;
+        let txtSize = action.textSize;
+        let spacing = action.spacing;
+
+        push();
+        fill(fillColour);
+        noStroke();
+        textSize(txtSize);
+
+        let minX = Math.min(...shape.map(pt => pt.x));
+        let maxX = Math.max(...shape.map(pt => pt.x));
+        let minY = Math.min(...shape.map(pt => pt.y));
+        let maxY = Math.max(...shape.map(pt => pt.y));
+
+        for (let y = minY; y < maxY; y += spacing) {
+          for (let x = minX; x < maxX; x += spacing) {
+            if (pnpoly(shape, x, y)) {
+              text(textString, x, y);
+            }
+          }
+        }
+        pop();
+      }
+
+      function pnpoly(vertices, testx, testy) {
+        let c = false;
+        for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+          let xi = vertices[i].x, yi = vertices[i].y;
+          let xj = vertices[j].x, yj = vertices[j].y;
+          let intersect = ((yi > testy) !== (yj > testy)) &&
+            (testx < (xj - xi) * (testy - yi) / (yj - yi) + xi);
+          if (intersect) c = !c;
+        }
+        return c;
+      }
+
+      /******************************************************
+       * Undo/Redo
+       ******************************************************/
+      function saveHistory() {
+        historyIndex++;
+        // Remove forward states
+        if (historyIndex < history.length) {
+          history.splice(historyIndex);
+        }
+        let snapshot = JSON.parse(JSON.stringify(actions));
+        history.push(snapshot);
+      }
+
+      function undoAction() {
+        if (historyIndex > 0) {
+          historyIndex--;
+          actions = JSON.parse(JSON.stringify(history[historyIndex]));
+        }
+      }
+
+      function redoAction() {
+        if (historyIndex < history.length - 1) {
+          historyIndex++;
+          actions = JSON.parse(JSON.stringify(history[historyIndex]));
+        }
+      }
+
+      /******************************************************
+       * Project Import / Export
+       ******************************************************/
+      function importProject() {
+        let input = createFileInput(handleFile);
+        input.elt.click();
+
+        function handleFile(file) {
+          if (file.type === 'application' || file.subtype === 'json') {
+            let data = JSON.parse(file.data);
+            if (!data.actions) {
+              alert("Invalid project file.");
+              return;
+            }
+            actions = data.actions;
+            history = [];
+            historyIndex = -1;
+            saveHistory();
+          } else {
+            alert("Please select a valid project JSON file.");
+          }
+        }
+      }
+
+      function exportProject() {
+        let projectData = {
+          actions: actions
+        };
+        let blob = new Blob([JSON.stringify(projectData)], { type: "application/json" });
+        let url = URL.createObjectURL(blob);
+
+        let a = createA(url, 'project.json');
+        a.elt.download = 'project.json';
+        a.elt.click();
+      }
+
+      /******************************************************
+       * High-Res Export
+       ******************************************************/
+      function exportHighRes(format) {
+        if (format === 'tiff') {
+          alert("TIFF export not supported in p5.js. Export as PNG/JPG and convert externally.");
+          return;
+        }
+
+        let pg = createGraphics(EXPORT_SIZE, EXPORT_SIZE);
+        pg.pixelDensity(1);
+
+        let exportScale = EXPORT_SIZE / INTERACTIVE_SIZE;
+        pg.background(255);
+
+        for (let action of actions) {
+          drawActionHighRes(action, pg, exportScale);
+        }
+
+        let mimeType = (format === 'png') ? 'image/png' : 'image/jpeg';
+        let dataURL = pg.canvas.toDataURL(mimeType);
+
+        let filename = 'myScarfDesign.' + format;
+        let a = createA(dataURL, filename);
+        a.elt.download = filename;
+        a.elt.click();
+
+        pg.remove();
+      }
+
+      function drawActionHighRes(action, pg, scale) {
+        if (action.type === 'stroke') {
+          drawStrokeHighRes(action, pg, scale);
+        } else if (action.type === 'fillShape') {
+          drawShapeFillHighRes(action, pg, scale);
+        }
+      }
+
+      function drawStrokeHighRes(strokeAction, pg, scale) {
+        let pts = strokeAction.points;
+        if (pts.length < 2) return;
+
+        let nib = strokeAction.nib;
+        let strokeColour = strokeAction.colour;
+        let sz = strokeAction.size * scale;
+
+        if (nib === 'calligraphy') {
+          pg.noStroke();
+          pg.fill(strokeColour);
+          for (let i = 0; i < pts.length; i++) {
+            let px = (pts[i].x + pts[i].offx) * scale;
+            let py = (pts[i].y + pts[i].offy) * scale;
+
             pg.push();
-            pg.stroke(strokeColour);
-            pg.strokeWeight(sz);
-            if (nib === 'circle') {
-              pg.strokeCap(pg.ROUND);
-              pg.strokeJoin(pg.ROUND);
+            pg.translate(px, py);
+            if (i > 0) {
+              let dx = pts[i].x - pts[i-1].x;
+              let dy = pts[i].y - pts[i-1].y;
+              let angle = pg.atan2(dy, dx);
+              pg.rotate(angle + pg.radians(45));
             } else {
-              pg.strokeCap(pg.SQUARE);
-              pg.strokeJoin(pg.BEVEL);
+              pg.rotate(pg.radians(45));
             }
-            pg.noFill();
-            pg.beginShape();
-            for (let i = 0; i < pts.length; i++) {
-              let px = (pts[i].x + pts[i].offx) * scale;
-              let py = (pts[i].y + pts[i].offy) * scale;
-              pg.vertex(px, py);
-            }
-            pg.endShape();
+            pg.rectMode(pg.CENTER);
+            pg.rect(0, 0, sz * 1.5, sz * 0.4);
             pg.pop();
           }
-        }
-
-        // High-res shape fill
-        function drawShapeFillHighRes(action, pg, scale) {
-          let shape = action.shape;
-          let textString = action.text;
-          let fillColour = action.colour;
-          let txtSize = action.textSize * scale;
-          let spacing = action.spacing;
-
+        } else {
+          // Circle/Square nib => smooth line
           pg.push();
-          pg.fill(fillColour);
-          pg.noStroke();
-          pg.textSize(txtSize);
-
-          let minX = Math.min(...shape.map(pt => pt.x));
-          let maxX = Math.max(...shape.map(pt => pt.x));
-          let minY = Math.min(...shape.map(pt => pt.y));
-          let maxY = Math.max(...shape.map(pt => pt.y));
-
-          for (let yy = minY; yy < maxY; yy += spacing) {
-            for (let xx = minX; xx < maxX; xx += spacing) {
-              if (pnpoly(shape, xx, yy)) {
-                pg.text(textString, xx * scale, yy * scale);
-              }
-            }
+          pg.stroke(strokeColour);
+          pg.strokeWeight(sz);
+          if (nib === 'circle') {
+            pg.strokeCap(pg.ROUND);
+            pg.strokeJoin(pg.ROUND);
+          } else {
+            pg.strokeCap(pg.SQUARE);
+            pg.strokeJoin(pg.BEVEL);
           }
+          pg.noFill();
+          pg.beginShape();
+          for (let i = 0; i < pts.length; i++) {
+            let px = (pts[i].x + pts[i].offx) * scale;
+            let py = (pts[i].y + pts[i].offy) * scale;
+            pg.vertex(px, py);
+          }
+          pg.endShape();
           pg.pop();
         }
+      }
 
-        /******************************************************
-         * UI Setup
-         ******************************************************/
-        function setupUI() {
-          // Build colour swatches
-          let swatchContainer = select('#colourSwatches');
-          SWATCH_COLOURS.forEach((clr, idx) => {
-            let div = createDiv();
-            div.class('colour-swatch');
-            div.style('background-color', clr); // Must remain 'background-color' for valid CSS
-            div.parent(swatchContainer);
-            div.mousePressed(() => {
-              brushColour = clr;
-              updateActiveSwatch(swatchContainer.elt.children, div.elt);
-            });
-            if (idx === 0) {
-              // Default
-              div.classList.add('active');
+      function drawShapeFillHighRes(action, pg, scale) {
+        let shape = action.shape;
+        let textString = action.text;
+        let fillColour = action.colour;
+        let txtSize = action.textSize * scale;
+        let spacing = action.spacing;
+
+        pg.push();
+        pg.fill(fillColour);
+        pg.noStroke();
+        pg.textSize(txtSize);
+
+        let minX = Math.min(...shape.map(pt => pt.x));
+        let maxX = Math.max(...shape.map(pt => pt.x));
+        let minY = Math.min(...shape.map(pt => pt.y));
+        let maxY = Math.max(...shape.map(pt => pt.y));
+
+        for (let yy = minY; yy < maxY; yy += spacing) {
+          for (let xx = minX; xx < maxX; xx += spacing) {
+            if (pnpoly(shape, xx, yy)) {
+              pg.text(textString, xx * scale, yy * scale);
             }
-          });
-
-          // Nib Swatches
-          let nibContainer = select('#nibSwatches');
-          NIB_OPTIONS.forEach((nib, idx) => {
-            let div = createDiv();
-            div.class('nib-swatch');
-            div.parent(nibContainer);
-            div.html(`<span>${nib}</span>`); // Simple text label
-            div.mousePressed(() => {
-              nibType = nib;
-              updateActiveSwatch(nibContainer.elt.children, div.elt);
-            });
-            if (idx === 0) {
-              div.classList.add('active');
-            }
-          });
-
-          // Brush Size
-          select('#brushSizeSlider').changed(() => {
-            brushSize = parseInt(select('#brushSizeSlider').value());
-          });
-
-          // Scatter
-          select('#scatterSlider').changed(() => {
-            scatterAmount = parseInt(select('#scatterSlider').value());
-          });
-
-          // Tools
-          select('#brushToolBtn').mousePressed(() => {
-            currentTool = 'brush';
-          });
-          select('#eraserToolBtn').mousePressed(() => {
-            currentTool = 'eraser';
-          });
-
-          // Undo / Redo
-          select('#undoBtn').mousePressed(undoAction);
-          select('#redoBtn').mousePressed(redoAction);
-
-          // Start New
-          select('#startNewBtn').mousePressed(() => {
-            let confirmNew = confirm("Start a new project? Unsaved work will be lost.");
-            if (confirmNew) {
-              actions = [];
-              history = [];
-              historyIndex = -1;
-              saveHistory();
-            }
-          });
-
-          // Import / Export Project
-          select('#importProjectBtn').mousePressed(importProject);
-          select('#exportProjectBtn').mousePressed(exportProject);
-
-          // Text Fill
-          select('#textFillBtn').mousePressed(fillLastShape);
-
-          // Export Image
-          select('#exportPngBtn').mousePressed(() => exportHighRes('png'));
-          select('#exportJpgBtn').mousePressed(() => exportHighRes('jpg'));
-          select('#exportTiffBtn').mousePressed(() => exportHighRes('tiff'));
-        }
-
-        // Highlight the active swatch (for colour or nib)
-        function updateActiveSwatch(siblingElements, activeElement) {
-          for (let i = 0; i < siblingElements.length; i++) {
-            siblingElements[i].classList.remove('active');
           }
-          activeElement.classList.add('active');
         }
-      </script>
-    </div>
-  </body>
+        pg.pop();
+      }
+
+      /******************************************************
+       * UI Setup
+       ******************************************************/
+      function setupUI() {
+        // Build colour swatches
+        let swatchContainer = select('#colourSwatches');
+        SWATCH_COLOURS.forEach((clr, idx) => {
+          let div = createDiv();
+          div.class('colour-swatch');
+          div.style('background-color', clr); // must remain 'background-color' for valid CSS
+          div.parent(swatchContainer);
+          div.mousePressed(() => {
+            brushColour = clr;
+            updateActiveSwatch(swatchContainer.elt.children, div.elt);
+          });
+          if (idx === 0) {
+            // default
+            div.classList.add('active');
+          }
+        });
+
+        // Nib Swatches
+        let nibContainer = select('#nibSwatches');
+        NIB_OPTIONS.forEach((nib, idx) => {
+          let div = createDiv();
+          div.class('nib-swatch');
+          div.parent(nibContainer);
+          div.html(`<span>${nib}</span>`); // label
+          div.mousePressed(() => {
+            nibType = nib;
+            updateActiveSwatch(nibContainer.elt.children, div.elt);
+          });
+          if (idx === 0) {
+            div.classList.add('active');
+          }
+        });
+
+        // Brush Size
+        select('#brushSizeSlider').changed(() => {
+          brushSize = parseInt(select('#brushSizeSlider').value());
+        });
+
+        // Scatter
+        select('#scatterSlider').changed(() => {
+          scatterAmount = parseInt(select('#scatterSlider').value());
+        });
+
+        // Tools
+        select('#brushToolBtn').mousePressed(() => {
+          currentTool = 'brush';
+        });
+        select('#eraserToolBtn').mousePressed(() => {
+          currentTool = 'eraser';
+        });
+
+        // Undo/Redo
+        select('#undoBtn').mousePressed(undoAction);
+        select('#redoBtn').mousePressed(redoAction);
+
+        // Start New
+        select('#startNewBtn').mousePressed(() => {
+          let confirmNew = confirm("Start a new project? Unsaved work will be lost.");
+          if (confirmNew) {
+            actions = [];
+            history = [];
+            historyIndex = -1;
+            saveHistory();
+          }
+        });
+
+        // Import/Export Project
+        select('#importProjectBtn').mousePressed(importProject);
+        select('#exportProjectBtn').mousePressed(exportProject);
+
+        // Text Fill
+        select('#textFillBtn').mousePressed(fillLastShape);
+
+        // Export Image
+        select('#exportPngBtn').mousePressed(() => exportHighRes('png'));
+        select('#exportJpgBtn').mousePressed(() => exportHighRes('jpg'));
+        select('#exportTiffBtn').mousePressed(() => exportHighRes('tiff'));
+      }
+
+      function updateActiveSwatch(siblingElements, activeElement) {
+        for (let i = 0; i < siblingElements.length; i++) {
+          siblingElements[i].classList.remove('active');
+        }
+        activeElement.classList.add('active');
+      }
+    </script>
+  </div>
+</body>
 </html>
