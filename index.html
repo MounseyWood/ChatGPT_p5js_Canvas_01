@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Scarf Drawing App - Kleki-Inspired</title>
+    <title>Scarf Drawing App - Updated</title>
     <style>
       body {
         margin: 0;
@@ -21,7 +21,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background-color: #000;
+        background-color: #000; /* Black behind the drawing area */
         overflow: hidden;
       }
       #myCanvas {
@@ -47,14 +47,23 @@
         flex-wrap: wrap;
         gap: 5px;
       }
-      .color-swatch {
+      .color-swatch, .nib-swatch {
         width: 30px;
         height: 30px;
         border: 2px solid #fff;
         cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
-      .color-swatch.active {
+      .color-swatch.active,
+      .nib-swatch.active {
         border: 2px solid yellow;
+      }
+      .nib-swatch span {
+        pointer-events: none;
+        font-size: 12px;
+        text-transform: capitalize;
       }
     </style>
   </head>
@@ -66,9 +75,7 @@
       <!-- Colour Palette -->
       <div class="tool-section">
         <label>Color:</label>
-        <div class="swatch-container" id="colorSwatches">
-          <!-- We'll dynamically create swatches -->
-        </div>
+        <div class="swatch-container" id="colorSwatches"></div>
       </div>
 
       <!-- Brush Settings -->
@@ -80,14 +87,10 @@
         <input type="range" id="scatterSlider" min="0" max="50" value="0" />
       </div>
 
-      <!-- Nib Type -->
+      <!-- Nib Swatches -->
       <div class="tool-section">
-        <label>Nib Shape:</label>
-        <select id="nibTypeSelect">
-          <option value="circle">Circle</option>
-          <option value="square">Square</option>
-          <option value="calligraphy">Calligraphy</option>
-        </select>
+        <label>Nib:</label>
+        <div class="swatch-container" id="nibSwatches"></div>
       </div>
 
       <!-- Tools: Brush / Eraser -->
@@ -143,7 +146,12 @@
       <script src="https://cdn.jsdelivr.net/npm/p5@1.4.0/lib/p5.js"></script>
       <script>
         /******************************************************
-         * SCARF DRAWING APP - Kleki-Inspired
+         * SCARF DRAWING APP - Updated
+         * - Scatter stored once (no "live" jitter)
+         * - Circle/Square nibs = smooth line
+         * - Calligraphy nib = angled stamps
+         * - Visible nib swatches
+         * - Black background behind white drawing area
          ******************************************************/
 
         // Interactive canvas dimensions
@@ -152,8 +160,7 @@
         // High-res export dimensions
         const EXPORT_SIZE = 7087; // ~90cm @200DPI
 
-        // We maintain a "world" coordinate system for strokes and shapes,
-        // so we can zoom and pan in the interactive canvas.
+        // Zoom & pan
         let scaleFactor = 1.0;
         let offsetX = 0;
         let offsetY = 0;
@@ -162,13 +169,13 @@
         let brushColor = '#000000';
         let brushSize = 10;
         let scatterAmount = 0;
-        let nibType = 'circle'; // circle, square, calligraphy
+        let nibType = 'circle'; // 'circle' | 'square' | 'calligraphy'
         let currentTool = 'brush'; // 'brush' or 'eraser'
 
-        // We'll store all user actions (strokes, shape fills) in an array
+        // Actions (strokes & shape fills)
         let actions = [];
 
-        // Current stroke being drawn
+        // Current stroke
         let currentStroke = null;
         let isDrawingStroke = false;
 
@@ -183,6 +190,9 @@
         // Predefined color swatches
         const SWATCH_COLORS = ['#000000','#FFFFFF','#FF0000','#00FF00','#0000FF'];
 
+        // Nib options to display
+        const NIB_OPTIONS = ['circle','square','calligraphy'];
+
         function setup() {
           let cnv = createCanvas(INTERACTIVE_SIZE, INTERACTIVE_SIZE);
           cnv.id('myCanvas');
@@ -192,43 +202,40 @@
           let container = select('#canvas-container');
           cnv.parent(container);
 
-          // White background
-          background(255);
-
           setupUI();
 
-          // Initialize offset so canvas is centered in the container
-          // (not strictly necessary, but can be nice)
+          // Start with a blank white drawing area
           centerCanvasInContainer();
 
-          // Save an initial blank state
+          // Save initial blank state
           saveHistory();
         }
 
         function draw() {
-          background(80); // grey background behind the scaled canvas
+          // Black background behind the scaled "world"
+          background(0);
 
-          // Transform for zoom/pan
+          // Zoom & pan
           push();
           translate(offsetX, offsetY);
           scale(scaleFactor);
 
-          // Draw the "world" canvas background (white)
+          // White "world" area
           noStroke();
           fill(255);
           rect(0, 0, INTERACTIVE_SIZE, INTERACTIVE_SIZE);
 
-          // Re-draw all actions
+          // Draw all actions
           for (let action of actions) {
             drawAction(action);
           }
 
-          // If drawing a stroke right now, preview it
+          // If drawing a stroke, preview it
           if (isDrawingStroke && currentStroke) {
             drawAction(currentStroke);
           }
 
-          // If capturing a shape, show a green line
+          // If capturing a shape, draw the preview line
           if (isDrawingShape && tempShape.length > 1) {
             stroke('#0f0');
             strokeWeight(1);
@@ -244,29 +251,33 @@
         }
 
         /******************************************************
-         * Window Resize or Setup Helpers
+         * Zoom & Pan Helpers
          ******************************************************/
         function centerCanvasInContainer() {
-          // Optionally center the 1000x1000 canvas in the container
-          // This is just an example. You can skip this if you want the
-          // top-left corner anchored at (0,0).
           let containerWidth = document.getElementById('canvas-container').clientWidth;
           let containerHeight = document.getElementById('canvas-container').clientHeight;
-
           offsetX = (containerWidth - (INTERACTIVE_SIZE * scaleFactor)) / 2;
           offsetY = (containerHeight - (INTERACTIVE_SIZE * scaleFactor)) / 2;
         }
 
-        /******************************************************
-         * MOUSE & SHAPE CAPTURE (World Coordinates)
-         ******************************************************/
+        function mouseWheel(event) {
+          let zoomAmount = 0.001 * event.delta;
+          let oldScale = scaleFactor;
+          scaleFactor -= zoomAmount;
+          scaleFactor = constrain(scaleFactor, 0.1, 10);
+
+          // Keep mouse position stable
+          let worldPosBefore = screenToWorld(mouseX, mouseY, oldScale);
+          let worldPosAfter = screenToWorld(mouseX, mouseY, scaleFactor);
+          offsetX += (worldPosAfter.x - worldPosBefore.x) * scaleFactor;
+          offsetY += (worldPosAfter.y - worldPosBefore.y) * scaleFactor;
+
+          return false; // Prevent default scrolling
+        }
+
         function mousePressed() {
           if (!mouseInCanvas()) return;
-
-          // Middle mouse drag for pan, do nothing for strokes
-          if (mouseButton === CENTER) {
-            return;
-          }
+          if (mouseButton === CENTER) return; // Middle mouse for pan only
 
           let wPos = screenToWorld(mouseX, mouseY);
 
@@ -280,18 +291,19 @@
               isDrawingStroke = true;
               currentStroke = {
                 type: 'stroke',
+                nib: nibType,
                 color: (currentTool === 'eraser') ? '#FFFFFF' : brushColor,
                 size: brushSize,
-                nib: nibType,
                 scatter: scatterAmount,
-                points: [ wPos ]
+                points: []
               };
+              addStrokePoint(currentStroke, wPos);
             }
           }
         }
 
         function mouseDragged() {
-          // If middle mouse is pressed, we're panning
+          // Middle mouse drag = panning
           if (mouseButton === CENTER) {
             offsetX += (mouseX - pmouseX);
             offsetY += (mouseY - pmouseY);
@@ -305,19 +317,16 @@
           if (isDrawingShape) {
             tempShape.push(wPos);
           } else if (isDrawingStroke && currentStroke) {
-            currentStroke.points.push(wPos);
+            addStrokePoint(currentStroke, wPos);
           }
         }
 
         function mouseReleased() {
-          if (mouseButton === CENTER) {
-            return; // finished panning
-          }
+          if (mouseButton === CENTER) return; // finished panning
 
           if (isDrawingShape) {
             isDrawingShape = false;
-            // The shape is captured in tempShape
-            // We'll fill it when user clicks "Fill Last Shape"
+            // shape is stored in tempShape; fill it when user clicks "Fill Last Shape"
           } else if (isDrawingStroke && currentStroke) {
             actions.push(currentStroke);
             isDrawingStroke = false;
@@ -326,24 +335,15 @@
           }
         }
 
-        // Zoom with mouse wheel
-        function mouseWheel(event) {
-          // Zoom in/out around mouse position
-          let zoomAmount = 0.001 * event.delta; // adjust speed to taste
-          let oldScale = scaleFactor;
-          scaleFactor -= zoomAmount;
-          scaleFactor = constrain(scaleFactor, 0.1, 10);
-
-          // To keep the point under the mouse stationary, we adjust offset
-          let worldPosBeforeZoom = screenToWorld(mouseX, mouseY, oldScale);
-          let worldPosAfterZoom = screenToWorld(mouseX, mouseY, scaleFactor);
-          offsetX += (worldPosAfterZoom.x - worldPosBeforeZoom.x) * scaleFactor;
-          offsetY += (worldPosAfterZoom.y - worldPosBeforeZoom.y) * scaleFactor;
-
-          return false; // prevent default browser scrolling
+        // Convert screen coords to world coords
+        function screenToWorld(sx, sy, customScale = scaleFactor) {
+          return {
+            x: (sx - offsetX) / customScale,
+            y: (sy - offsetY) / customScale
+          };
         }
 
-        // Check if mouse is within the visible canvas container
+        // Check if mouse is within p5 canvas
         function mouseInCanvas() {
           let c = document.getElementById('myCanvas');
           let bounds = c.getBoundingClientRect();
@@ -355,17 +355,22 @@
           );
         }
 
-        // Convert screen coords (mouseX, mouseY) to world coords
-        // using the current offset & scale
-        function screenToWorld(sx, sy, customScale = scaleFactor) {
-          return {
-            x: (sx - offsetX) / customScale,
-            y: (sy - offsetY) / customScale
-          };
+        /******************************************************
+         * Adding Stroke Points (with scatter)
+         ******************************************************/
+        function addStrokePoint(strokeObj, wPos) {
+          let offx = 0;
+          let offy = 0;
+          // If scatter > 0, offset once per point
+          if (strokeObj.scatter > 0) {
+            offx = random(-strokeObj.scatter, strokeObj.scatter);
+            offy = random(-strokeObj.scatter, strokeObj.scatter);
+          }
+          strokeObj.points.push({ x: wPos.x, y: wPos.y, offx, offy });
         }
 
         /******************************************************
-         * DRAWING ACTIONS
+         * Drawing Actions
          ******************************************************/
         function drawAction(action) {
           if (action.type === 'stroke') {
@@ -375,54 +380,64 @@
           }
         }
 
+        // Circle & Square nib = smooth line
+        // Calligraphy nib = angled stamping
         function drawStroke(strokeAction) {
           let pts = strokeAction.points;
+          if (pts.length < 2) return; // Not enough points to draw
+
+          let nib = strokeAction.nib;
           let col = strokeAction.color;
           let sz = strokeAction.size;
-          let scatter = strokeAction.scatter;
-          let nib = strokeAction.nib;
 
-          // We'll "stamp" a shape for each point to simulate nib shape + scatter
-          noStroke();
-          fill(col);
+          if (nib === 'calligraphy') {
+            // Stamping approach
+            noStroke();
+            fill(col);
+            for (let i = 0; i < pts.length; i++) {
+              let px = pts[i].x + pts[i].offx;
+              let py = pts[i].y + pts[i].offy;
 
-          for (let i = 0; i < pts.length; i++) {
-            // Random offset for scatter
-            let ox = random(-scatter, scatter);
-            let oy = random(-scatter, scatter);
-
-            let x = pts[i].x + ox;
-            let y = pts[i].y + oy;
-
-            if (nib === 'circle') {
-              ellipse(x, y, sz, sz);
-            } else if (nib === 'square') {
-              rectMode(CENTER);
-              rect(x, y, sz, sz);
-            } else if (nib === 'calligraphy') {
-              // We'll do a simple angled rectangle
               push();
-              translate(x, y);
-              // angle based on stroke direction if we want to get fancy:
-              // if i>0, compute direction from pts[i-1] to pts[i].
+              translate(px, py);
               if (i > 0) {
                 let dx = pts[i].x - pts[i-1].x;
                 let dy = pts[i].y - pts[i-1].y;
                 let angle = atan2(dy, dx);
-                // offset by 45 degrees for a calligraphy effect
                 rotate(angle + radians(45));
               } else {
                 rotate(radians(45));
               }
               rectMode(CENTER);
-              rect(0, 0, sz * 1.5, sz * 0.4); // calligraphy nib shape
+              rect(0, 0, sz * 1.5, sz * 0.4);
               pop();
             }
+          } else {
+            // Smooth line approach for circle or square
+            stroke(col);
+            strokeWeight(sz);
+            if (nib === 'circle') {
+              strokeCap(ROUND);
+              strokeJoin(ROUND);
+            } else {
+              // square nib
+              strokeCap(SQUARE);
+              strokeJoin(BEVEL);
+            }
+            noFill();
+
+            beginShape();
+            for (let i = 0; i < pts.length; i++) {
+              let px = pts[i].x + pts[i].offx;
+              let py = pts[i].y + pts[i].offy;
+              vertex(px, py);
+            }
+            endShape();
           }
         }
 
         /******************************************************
-         * TEXT FILL
+         * Shape Fill with Text
          ******************************************************/
         function fillLastShape() {
           if (tempShape.length < 3) {
@@ -458,7 +473,6 @@
           noStroke();
           textSize(txtSize);
 
-          // bounding box
           let minX = Math.min(...shape.map(pt => pt.x));
           let maxX = Math.max(...shape.map(pt => pt.x));
           let minY = Math.min(...shape.map(pt => pt.y));
@@ -474,7 +488,7 @@
           pop();
         }
 
-        // Point in polygon (pnpoly)
+        // Point in polygon
         function pnpoly(vertices, testx, testy) {
           let c = false;
           for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
@@ -488,7 +502,7 @@
         }
 
         /******************************************************
-         * UNDO/REDO
+         * Undo/Redo
          ******************************************************/
         function saveHistory() {
           historyIndex++;
@@ -515,7 +529,7 @@
         }
 
         /******************************************************
-         * PROJECT IMPORT / EXPORT
+         * Project Import / Export (JSON)
          ******************************************************/
         function importProject() {
           let input = createFileInput(handleFile);
@@ -551,7 +565,7 @@
         }
 
         /******************************************************
-         * HIGH-RES EXPORT
+         * High-Res Export
          ******************************************************/
         function exportHighRes(format) {
           if (format === 'tiff') {
@@ -559,22 +573,17 @@
             return;
           }
 
-          // Create an off-screen graphics buffer at EXPORT_SIZE
           let pg = createGraphics(EXPORT_SIZE, EXPORT_SIZE);
           pg.pixelDensity(1);
 
-          // The scale factor between our world size (1000x1000) and export size
           let exportScale = EXPORT_SIZE / INTERACTIVE_SIZE;
-
-          // White background
           pg.background(255);
 
-          // Re-draw each action in the off-screen buffer
+          // Re-draw each action in off-screen buffer
           for (let action of actions) {
             drawActionHighRes(action, pg, exportScale);
           }
 
-          // Convert to data URL
           let mimeType = (format === 'png') ? 'image/png' : 'image/jpeg';
           let dataURL = pg.canvas.toDataURL(mimeType);
 
@@ -586,96 +595,132 @@
           pg.remove();
         }
 
-        // Re-draw a single action on the high-res buffer
+        // High-res version of drawAction
         function drawActionHighRes(action, pg, scale) {
           if (action.type === 'stroke') {
-            let pts = action.points;
-            let col = action.color;
-            let sz = action.size;
-            let scatter = action.scatter;
-            let nib = action.nib;
+            drawStrokeHighRes(action, pg, scale);
+          } else if (action.type === 'fillShape') {
+            drawShapeFillHighRes(action, pg, scale);
+          }
+        }
 
+        // Circle/Square nib = line approach; Calligraphy = stamp approach
+        function drawStrokeHighRes(strokeAction, pg, scale) {
+          let pts = strokeAction.points;
+          if (pts.length < 2) return;
+
+          let nib = strokeAction.nib;
+          let col = strokeAction.color;
+          let sz = strokeAction.size * scale;
+
+          if (nib === 'calligraphy') {
             pg.noStroke();
             pg.fill(col);
-
             for (let i = 0; i < pts.length; i++) {
-              // random offset for scatter
-              let ox = random(-scatter, scatter);
-              let oy = random(-scatter, scatter);
+              let px = (pts[i].x + pts[i].offx) * scale;
+              let py = (pts[i].y + pts[i].offy) * scale;
 
-              let x = (pts[i].x + ox) * scale;
-              let y = (pts[i].y + oy) * scale;
-              let sizeScaled = sz * scale;
-
-              if (nib === 'circle') {
-                pg.ellipse(x, y, sizeScaled, sizeScaled);
-              } else if (nib === 'square') {
-                pg.rectMode(CENTER);
-                pg.rect(x, y, sizeScaled, sizeScaled);
-              } else if (nib === 'calligraphy') {
-                pg.push();
-                pg.translate(x, y);
-                if (i > 0) {
-                  let dx = pts[i].x - pts[i-1].x;
-                  let dy = pts[i].y - pts[i-1].y;
-                  let angle = pg.atan2(dy, dx);
-                  // offset by 45 deg
-                  pg.rotate(angle + pg.radians(45));
-                } else {
-                  pg.rotate(pg.radians(45));
-                }
-                pg.rectMode(pg.CENTER);
-                pg.rect(0, 0, sizeScaled * 1.5, sizeScaled * 0.4);
-                pg.pop();
+              pg.push();
+              pg.translate(px, py);
+              if (i > 0) {
+                let dx = pts[i].x - pts[i-1].x;
+                let dy = pts[i].y - pts[i-1].y;
+                let angle = pg.atan2(dy, dx);
+                pg.rotate(angle + pg.radians(45));
+              } else {
+                pg.rotate(pg.radians(45));
               }
+              pg.rectMode(pg.CENTER);
+              pg.rect(0, 0, sz * 1.5, sz * 0.4);
+              pg.pop();
             }
-          } else if (action.type === 'fillShape') {
-            let shape = action.shape;
-            let textString = action.text;
-            let fillColor = action.color;
-            let txtSize = action.textSize;
-            let spacing = action.spacing;
-
+          } else {
+            // Smooth line
             pg.push();
-            pg.fill(fillColor);
-            pg.noStroke();
-            pg.textSize(txtSize * scale);
-
-            let minX = Math.min(...shape.map(pt => pt.x));
-            let maxX = Math.max(...shape.map(pt => pt.x));
-            let minY = Math.min(...shape.map(pt => pt.y));
-            let maxY = Math.max(...shape.map(pt => pt.y));
-
-            for (let yy = minY; yy < maxY; yy += spacing) {
-              for (let xx = minX; xx < maxX; xx += spacing) {
-                if (pnpoly(shape, xx, yy)) {
-                  pg.text(textString, xx * scale, yy * scale);
-                }
-              }
+            pg.stroke(col);
+            pg.strokeWeight(sz);
+            if (nib === 'circle') {
+              pg.strokeCap(pg.ROUND);
+              pg.strokeJoin(pg.ROUND);
+            } else {
+              pg.strokeCap(pg.SQUARE);
+              pg.strokeJoin(pg.BEVEL);
             }
+            pg.noFill();
+            pg.beginShape();
+            for (let i = 0; i < pts.length; i++) {
+              let px = (pts[i].x + pts[i].offx) * scale;
+              let py = (pts[i].y + pts[i].offy) * scale;
+              pg.vertex(px, py);
+            }
+            pg.endShape();
             pg.pop();
           }
         }
 
+        // High-res shape fill
+        function drawShapeFillHighRes(action, pg, scale) {
+          let shape = action.shape;
+          let textString = action.text;
+          let fillColor = action.color;
+          let txtSize = action.textSize * scale;
+          let spacing = action.spacing;
+          pg.push();
+          pg.fill(fillColor);
+          pg.noStroke();
+          pg.textSize(txtSize);
+
+          let minX = Math.min(...shape.map(pt => pt.x));
+          let maxX = Math.max(...shape.map(pt => pt.x));
+          let minY = Math.min(...shape.map(pt => pt.y));
+          let maxY = Math.max(...shape.map(pt => pt.y));
+
+          for (let yy = minY; yy < maxY; yy += spacing) {
+            for (let xx = minX; xx < maxX; xx += spacing) {
+              if (pnpoly(shape, xx, yy)) {
+                pg.text(textString, xx * scale, yy * scale);
+              }
+            }
+          }
+          pg.pop();
+        }
+
         /******************************************************
-         * UI SETUP
+         * UI Setup
          ******************************************************/
         function setupUI() {
-          // Build color swatches
+          // Color Swatches
           let swatchContainer = select('#colorSwatches');
-          SWATCH_COLORS.forEach((col) => {
+          SWATCH_COLORS.forEach((col, idx) => {
             let div = createDiv();
             div.class('color-swatch');
             div.style('background-color', col);
             div.parent(swatchContainer);
-
             div.mousePressed(() => {
               brushColor = col;
-              updateActiveSwatch(div);
+              updateActiveSwatch(swatchContainer.elt.children, div.elt);
             });
+            if (idx === 0) {
+              // Default color
+              div.classList.add('active');
+            }
           });
-          // Default active color: first swatch
-          updateActiveSwatch(swatchContainer.elt.children[0]);
+
+          // Nib Swatches
+          let nibContainer = select('#nibSwatches');
+          NIB_OPTIONS.forEach((nib, idx) => {
+            let div = createDiv();
+            div.class('nib-swatch');
+            div.parent(nibContainer);
+            div.html(`<span>${nib}</span>`); // simple text label
+            div.mousePressed(() => {
+              nibType = nib;
+              updateActiveSwatch(nibContainer.elt.children, div.elt);
+            });
+            if (idx === 0) {
+              div.classList.add('active');
+            }
+          });
 
           // Brush Size
           select('#brushSizeSlider').changed(() => {
@@ -685,11 +730,6 @@
           // Scatter
           select('#scatterSlider').changed(() => {
             scatterAmount = parseInt(select('#scatterSlider').value());
-          });
-
-          // Nib Type
-          select('#nibTypeSelect').changed(() => {
-            nibType = select('#nibTypeSelect').value();
           });
 
           // Tools
@@ -711,7 +751,6 @@
               actions = [];
               history = [];
               historyIndex = -1;
-              background(255);
               saveHistory();
             }
           });
@@ -729,14 +768,12 @@
           select('#exportTiffBtn').mousePressed(() => exportHighRes('tiff'));
         }
 
-        function updateActiveSwatch(selectedDiv) {
-          // Remove "active" class from all swatches
-          let parent = selectedDiv.parentNode;
-          for (let i = 0; i < parent.children.length; i++) {
-            parent.children[i].classList.remove('active');
+        // Highlight the active swatch for color or nib
+        function updateActiveSwatch(siblingElements, activeElement) {
+          for (let i = 0; i < siblingElements.length; i++) {
+            siblingElements[i].classList.remove('active');
           }
-          // Add to the clicked one
-          selectedDiv.classList.add('active');
+          activeElement.classList.add('active');
         }
       </script>
     </div>
